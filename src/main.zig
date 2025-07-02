@@ -1,46 +1,32 @@
-//! By convention, main.zig is where your main function lives in the case that
-//! you are building an executable. If you are making a library, the convention
-//! is to delete this file and start with root.zig instead.
+const std = @import("std");
+const builtin = @import("builtin");
 
 pub fn main() !void {
-    // Prints to stderr (it's a shortcut based on `std.io.getStdErr()`)
-    std.debug.print("All your {s} are belong to us.\n", .{"codebase"});
+    // Set console code page to UTF-8 on Windows
+    if (builtin.os.tag == .windows) {
+        var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+        defer arena.deinit();
+        const allocator = arena.allocator();
 
-    // stdout is for the actual output of your application, for example if you
-    // are implementing gzip, then only the compressed bytes should be sent to
-    // stdout, not any debugging messages.
-    const stdout_file = std.io.getStdOut().writer();
-    var bw = std.io.bufferedWriter(stdout_file);
-    const stdout = bw.writer();
-
-    try stdout.print("Run `zig build test` to run the tests.\n", .{});
-
-    try bw.flush(); // Don't forget to flush!
-}
-
-test "simple test" {
-    var list = std.ArrayList(i32).init(std.testing.allocator);
-    defer list.deinit(); // Try commenting this out and see if zig detects the memory leak!
-    try list.append(42);
-    try std.testing.expectEqual(@as(i32, 42), list.pop());
-}
-
-test "use other module" {
-    try std.testing.expectEqual(@as(i32, 150), lib.add(100, 50));
-}
-
-test "fuzz example" {
-    const Context = struct {
-        fn testOne(context: @This(), input: []const u8) anyerror!void {
-            _ = context;
-            // Try passing `--fuzz` to `zig build test` and see if it manages to fail this test case!
-            try std.testing.expect(!std.mem.eql(u8, "canyoufindme", input));
+        const args = [_][]const u8{ "chcp", "65001" };
+        var process = std.process.Child.init(&args, allocator);
+        process.stdout_behavior = .Inherit;
+        process.stderr_behavior = .Inherit;
+        const term = process.spawnAndWait() catch |err| {
+            std.debug.print("Failed to execute 'chcp 65001': {}\n", .{err});
+            return err;
+        };
+        if (term.Exited != 0) {
+            std.debug.print("Command 'chcp 65001' failed with exit code {}\n", .{term.Exited});
+            return error.SetCodePageFailed;
         }
+    }
+
+    // Write UTF-8 text to stdout
+    const text = "Варкалось. Хливкие шорьки\nПырялись по наве,\nИ хрюкотали зелюки,\nКак мюмзики в мове.\n";
+    const stdout = std.io.getStdOut().writer();
+    stdout.writeAll(text) catch |err| {
+        std.debug.print("Failed to write to stdout: {}\n", .{err});
+        return err;
     };
-    try std.testing.fuzz(Context{}, Context.testOne, .{});
 }
-
-const std = @import("std");
-
-/// This imports the separate module containing `root.zig`. Take a look in `build.zig` for details.
-const lib = @import("zeluki_lib");
