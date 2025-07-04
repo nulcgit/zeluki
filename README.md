@@ -1,3 +1,3 @@
 # Zeluki
 
-Zeluki - local CMS
+Zeluki - self-hosted sites / Зелюки - саморазмещаемые сайты  
